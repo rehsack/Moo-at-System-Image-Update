@@ -1,0 +1,610 @@
+\documentclass[ngerman,xcolor={table,dvipsnames},smaller,compress,hyperref={bookmarks,colorlinks}]{beamer}%,handout
+
+\usepackage{url}
+\usepackage{listings}
+\usepackage[latin9]{inputenc}
+\usepackage{textcomp}
+%\usepackage{auto-pst-pdf}
+\usepackage{graphicx}
+\usepackage{pstricks}
+\usepackage{pst-node}
+\usepackage{pst-uml}
+\usepackage{pst-tree}
+\usepackage{pst-blur}
+
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{amsmath}
+
+% for multipage tables (xtab or longtable
+\usepackage{longtable}
+\usepackage{lscape}
+\usepackage{booktabs}
+\usepackage[tableposition=top]{caption}
+
+\title{Moo in practice - System::Image::Update}
+\author{Jens Rehsack}
+\institute[Niederrhein.PM]{Niederrhein Perl Mongers}
+\date{2015}
+
+\usetheme[secheader]{Boadilla}
+\setbeamertemplate{navigation symbols}{}
+
+\newcommand{\perlfilename}[1]{{\color{cyan}{\textit{\begingroup \urlstyle{sf}\Url{#1}}}}}
+\newcommand{\xsfilename}[1]{{\color{olive}{\textit{\begingroup \urlstyle{sf}\Url{#1}}}}}
+\newcommand{\hfilename}[1]{{\color{olive}{\textit{\begingroup \urlstyle{sf}\Url{#1}}}}}
+\newcommand{\cfilename}[1]{{\color{magenta}{\textit{\begingroup \urlstyle{sf}\Url{#1}}}}}
+
+\makeatletter
+\makeatother
+
+\begin{document}
+
+\psset{angleA=90,angleB=-90}
+\lstset{language=Perl,
+        basicstyle=\ttfamily,
+        keywordstyle=\color{Maroon},
+        commentstyle=\color{Blue}, 
+        stringstyle=\color{Green},
+        showstringspaces=false}
+
+\AtBeginPart{\begin{frame}<beamer> \frametitle{Overview} \partpage \tableofcontents[current] \end{frame}}
+
+\frame{\maketitle}
+
+\part{Introduction}
+
+\section{Introduction}
+
+\subsection{Motivation}
+
+\begin{frame}[t,fragile]{Motivation}
+
+\begin{block}<1->{Moo and System::Image::Update}
+\begin{itemize}
+\item real world examples over far-fetched conceptuals
+\item MooX::ConfigFromFile and MooX::Options provide way more features and flexibility than MooseX competitors
+\item $ 2^{nd} $ generation of modern OO in Perl5
+\end{itemize}
+\end{block}
+
+\begin{block}<2->{System::Image::Update}
+\begin{itemize}
+\item Provides an out-of-the-box solution for managing updates on embedded devices
+\item Easy to re-use in several layers of the firmware
+    \begin{itemize}
+    \item self-sustaining (automatic) update management including forced updates (mind heartbleed)
+    \item embedable into middleware
+    \item ability for shortcuts
+    \end{itemize}
+\item self-healing capabilities
+\end{itemize}
+\end{block}
+
+\end{frame}
+
+\subsection{Audience}
+
+\begin{frame}[t,fragile]{Audience}
+\begin{block}<1->{Audience}
+\begin{itemize}
+\item Developer who wants to create or improve Perl5 software
+\item Developer who wants to learn how to develop modern OO with Perl5
+\item Developer who interested in developing mathematical exercises
+\end{itemize}
+\end{block}
+
+\begin{block}<2->{Prerequisites of the Audience}
+Following knowledge is expected:
+\begin{itemize}
+\item General knowledge about object oriented programming or concepts like
+    \small
+    \begin{itemize}
+    \item classes
+    \item objects
+    \item polymorphism, inheritance and/or roles
+    \item methods, class functions
+    \item attributes, properties
+    \end{itemize}
+    \normalsize
+\item slightly above basic Perl experience
+\uncover<3->{\item ever heard of Smalltalk and its OO-concept is a strong bonus}
+\end{itemize}
+\end{block}
+\end{frame}
+
+\part{Moo basics}
+
+\section{Modules}
+
+\subsection{Classes and Roles}
+
+\begin{frame}[t,fragile]
+
+\begin{block}<1->{Classes in Moo}
+\begin{itemize}
+\item classes can be instantiated
+\uncover<2->{\item one can inherit from classes}
+\uncover<3->{\item one can aggregate classes}
+\uncover<4->{\item distinguish naming conflicts is up to developer}
+\end{itemize}
+\end{block}
+
+\begin{block}<5->{}
+\scriptsize
+\begin{lstlisting}[language=Perl,inputencoding=latin9,escapeinside={(*@}{@*)}]
+{
+package System::Image::Update;
+
+use Moo;
+use MooX::Options with_config_from_file => 1;
+use IO::Async ();
+...
+use File::ConfigDir::System::Image::Update qw(system_image_update_dir);
+around BUILDARGS => sub {...};
+sub run {..}
+sub collect_savable_config {}
+sub reset_config {}
+sub save_config {}
+}
+System::Image::Update->new_with_options->run;
+\end{lstlisting}
+\end{block}
+
+\end{frame}
+
+\begin{frame}[t,fragile]
+
+\begin{block}<1->{Roles in Moo}
+\begin{itemize}
+\item roles describe a dedicated behavior (e.g. \texttt{logger})
+\uncover<2->{\item roles can be composed into classes}
+\uncover<3->{\item one can't inherit from roles - only consume}
+\uncover<4->{\item roles cannot exist stand-alone}
+\uncover<5->{\item roles are consumed once}
+\uncover<6->{\item naming conflicts cause compile time error}
+\end{itemize}
+\end{block}
+
+\begin{block}<7->{}
+\scriptsize
+\begin{lstlisting}[language=Perl,inputencoding=latin9,escapeinside={(*@}{@*)}]
+{   package System::Image::Update::Role::HTTP;
+
+    use Moo::Role; # now it's a role - no 'is a' relationship anymore
+
+    sub do_http_request { ... }
+    around collect_savable_config => sub {...};
+}
+{   package System::Image::Update::Role::Scan;
+
+    use Moo::Role;
+    with "System::Image::Update::Role::HTTP"; # consumes a role
+
+    sub scan { my $self = shift; $self->do_http_request(...) };
+}
+\end{lstlisting}
+\end{block}
+
+\end{frame}
+
+\section{Attributes}
+
+\subsection{Attributes in Moo}
+
+\begin{frame}[t,fragile]
+
+\begin{block}<1->{Attributes in Moo}
+\scriptsize
+\begin{lstlisting}[language=Perl,inputencoding=latin9,escapeinside={(*@}{@*)}]
+package System::Image::Update::Role::Scan;
+
+use Moo::Role;
+
+has(*@\pnode(0,0){A}{}@*) scan_(*@\pnode(0,0){B}{}@*)interval => ( is => "(*@\pnode(0,0){D}{}@*)ro", (*@\pnode(0,0){F}{}@*)default => 6*60*60 );
+has update_mani(*@\pnode(0,0){C}{}@*)fest_uri => ( is => "(*@\pnode(0,0){E}{}@*)lazy(*@\pnode(0,0){G}{}@*)" );
+
+1;
+\end{lstlisting}
+\end{block}
+
+\begin{itemize}
+\uncover<2->{\item use \rnode{a}{"has"} keyword to define a attribute}
+\uncover<3->{\item attributes \rnode{b}{"scan\_interval"} and \rnode{c}{"update\_manifest\_uri"}}
+\uncover<4->{\item those attributes are \rnode{d}{immutable}}
+\uncover<5->{\item scan\_interval is initialized with a \rnode{f}{constant}}
+\uncover<6->{\item update\_manifest\_uri is initialized by a \rnode{g}{builder}}
+\uncover<2>{\nccurve[linecolor=olive]{->}{a}{A}}
+\uncover<3>{\nccurve[linecolor=teal]{->}{b}{B}\nccurve[linecolor=teal]{->}{c}{C}}
+\uncover<4>{\nccurve[linecolor=blue]{->}{d}{D}\nccurve[linecolor=blue]{->}{d}{E}}
+\uncover<5>{\nccurve[linecolor=cyan]{->}{f}{F}}
+\uncover<6>{\nccurve[linecolor=cyan]{->}{g}{G}}
+\end{itemize}
+
+\end{frame}
+
+\subsection{Attribute Options}
+
+\begin{frame}[t,fragile]
+
+\begin{block}<1->{Attribute options - Selection I}
+\begin{description}
+\item[is] \textbf{required} behavior description
+    \begin{description}
+    \uncover<2->{\item[ro] defines the attribute is read only}
+    \uncover<3->{\item[rw] defined the attribute is read-/writable}
+    \uncover<4->{\item[lazy] defines the attribute is read only with a lazy initialization}
+    \end{description}
+\uncover<5->{\item[required] when set to a true value, attribute must be passed on instantiation}
+\uncover<6->{\item[isa] defines a subroutine (\texttt{coderef}) which is called to validate values to set}
+\uncover<7->{\item[coerce] defines a subroutine (\texttt{coderef}) which forces attribute values}
+\uncover<8->{\item[trigger] takes a subroutine (\texttt{coderef}) which called anytime the attribute is set \\
+    \uncover<9->{\textbf{special}: the value of $ 1 $ means to generate a (\texttt{coderef}) which calles the method \texttt{\_trigger\_\$\{attr\_name\}} (This is called \textit{attribute shortcut})}}
+\uncover<10->{\item[default] subroutine (\texttt{coderef}) which is called to initialize an attribute}
+\end{description}
+\end{block}
+
+\end{frame}
+
+\begin{frame}[t,fragile]
+
+\begin{block}<1->{Attribute options - Selection II}
+\begin{description}[style=sameline]
+\item[builder] takes a method name (\texttt{string}) which is called to initialize an attribute (supports \textit{attribute shortcut})
+\uncover<2->{\item[init\_arg] Takes the name of the key to look for at instantiation time of the object. A common use of this is to make an underscored attribute have a non-underscored initialization name. undef means that passing the value in on instantiation is ignored.}
+\uncover<3->{\item[clearer] takes a method name (\texttt{string}) which will clear the attribute (supports \textit{attribute shortcut})}
+\uncover<4->{\item[predicate] takes a method name (\texttt{string}) which will return true if an attribute has a value (supports \textit{attribute shortcut})}
+\end{description}
+\end{block}
+
+\end{frame}
+
+\section{Methods}
+
+\subsection{Method Examples}
+
+\begin{frame}[t,fragile]
+
+%\begin{columns}[t]
+%\begin{column}{.8\textwidth}
+\begin{block}{Methods in Moo}
+\scriptsize
+\begin{lstlisting}[language=Perl,inputencoding=latin9,escapeinside={(*@}{@*)}]
+package System::Image::Update::Role::Async;
+
+use IO::Async; use IO::Async::Loop;
+use IO::Async::Timer::Absolute; use IO::Async::Timer::Countdown;
+
+use Moo::Role;
+
+has loop => ( is => "lazy", predicate => 1 );
+sub _build_loop { return IO::Async::Loop->new() }
+
+sub wakeup_at { my ( $self, $when, $cb_method ) = @_;
+    my $timer;
+    $self->loop->add($timer = IO::Async::Timer::Absolute->new(
+        time      => $when,
+        on_expire => sub { $self->$cb_method },
+    ));
+    $timer;
+}
+\end{lstlisting}
+\end{block}
+
+\onslide<2->{
+\begin{itemize}
+\item nothing like \texttt{MooseX::Declare} - pure Perl5 keywords are enough for plain methods
+\end{itemize}
+}
+
+\end{frame}
+
+\subsection{Method Modifiers}
+
+\begin{frame}[t,fragile]
+
+\begin{block}<1->{Method Modifiers}
+Method modifiers are a convenient feature from the CLOS (Common Lisp Object System) world:
+\begin{description}
+\uncover<2->{\item[before] \texttt{before method(s) => sub \{ \ldots \}} \\
+before is called before the method it is modifying. Its return value is totally ignored.}
+\uncover<3->{\item[after] \texttt{after method(s) => sub \{ \ldots \}} \\
+after is called after the method it is modifying. Its return value is totally ignored.}
+\uncover<4->{\item[around] \texttt{around method(s) => sub \{ \ldots \}} \\
+around is called instead of the method it is modifying. The method you're overriding is passed as \texttt{coderef} in the first argument.}
+\uncover<5->{\item[-] No support for \texttt{super}, \texttt{override}, \texttt{inner} or \texttt{augment}}
+\end{description}
+\end{block}
+
+\end{frame}
+
+\begin{frame}[t,fragile]
+
+\begin{block}<1->{Method Modifiers - Advantages}
+\begin{itemize}
+\item supersedes \texttt{\$self->SUPER::foo(@\_)} syntax
+\uncover<2->{\item cleaner interface than SUPER}
+\uncover<3->{\item allows multiple modifiers in single namespace}
+\uncover<4->{\item also possible from within roles and not restricted to inheritance}
+\uncover<5->{\item ensures that inherited methods invocation happens right (mostly - remember around)}
+\end{itemize}
+\end{block}
+
+\end{frame}
+
+\begin{frame}[t,fragile]
+
+\begin{block}<1->{Methods Modifiers - around avoid calling \texttt{\$orig}}
+\scriptsize
+\begin{lstlisting}[language=Perl,inputencoding=latin9,escapeinside={(*@}{@*)}]
+package Update::Status;
+
+use strict; use warnings; use Moo;
+extends "System::Image::Update";
+around _build_config_prefix => sub { "sysimg_update" };
+\end{lstlisting}
+\end{block}
+
+\begin{itemize}
+\uncover<2->{\item captures control}
+\uncover<3->{\item receives responsibility}
+\uncover<4->{\item runtime of modified method completely eliminated}
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}[t,fragile]
+
+\begin{block}<1->{Methods Modifiers - around modifying \texttt{\$orig} return value}
+\scriptsize
+\begin{lstlisting}[language=Perl,inputencoding=latin9,escapeinside={(*@}{@*)}]
+package System::Image::Update::Role::Scan;
+
+use strict; use warnings; use Moo::Role;
+
+around collect_savable_config => sub {
+    my $next                   = shift;
+    my $self                   = shift;
+    my $collect_savable_config = $self->$next(@_);
+
+    $self->update_server eq $default_update_server or $collect_savable_config->{update_server} = $self->update_server;
+    ...
+    $collect_savable_config
+}
+\end{lstlisting}
+\end{block}
+
+\begin{itemize}
+\uncover<2->{\item modifies only required part}
+\uncover<3->{\item leaves most responsibility in modified method}
+\uncover<4->{\item runtime of modified method added to this method's runtime}
+\end{itemize}
+
+\end{frame}
+
+\part{System::Image::Update}
+
+\section{Domain}
+
+\subsection{Company}
+
+\begin{frame}[t,fragile]
+
+\begin{block}<1->{Rademacher Elektronik GmbH, Rhede}
+  \begin{columns}
+    \column[T]{.50\textwidth}
+    \raisebox{\dimexpr.5\ht\strutbox-\totalheight-\partopsep-\topsep\relax}{%
+      \includegraphics[width=5cm]{RDM-Factory-1-Front.eps}
+    }%
+    \column[T]{.50\textwidth}
+    \uncover<2->{
+      \begin{itemize}
+      \item Successor of Guruplug based Homepilot 1
+      \uncover<3->{\item Full update abilities (including boot loader, kernel and system components)}
+      \uncover<4->{\item Multimedia features (Mediaplayer with HDMI video and Coaxial audio)}
+      \uncover<5->{\item Closer Adoption to Rademacher Way: Control from Hardware development until Customer Service}
+      \end{itemize}
+    }
+  \end{columns} 
+\end{block}
+
+\end{frame}
+
+\subsection{Application}
+
+\begin{frame}[t,fragile]
+
+\begin{block}<1->{HomePilot 2}
+  \begin{columns}
+    \column[T]{.50\textwidth}
+    \raisebox{\dimexpr.5\ht\strutbox-\totalheight-\partopsep-\topsep\relax}{%
+      \includegraphics{Homepilot-angular.eps}
+    }%
+    \column[T]{.50\textwidth}
+      \uncover<2->{
+      \begin{itemize}
+      \item service console moved from PHP to Perl5, PSGI and Dancer
+      \uncover<3->{\item system management and automation full Perl5 powered}
+      \uncover<4->{\item company infrastructure improved by Perl (eg. production of HP2)}
+      \uncover<5->{\item PoC use Perl6 + NativeCall to eliminate wrapper processes}
+      \uncover<6->{\item created Yocto CPAN Layer for cross compiling lot's of CPAN modules}
+      \end{itemize}
+    }
+  \end{columns} 
+\end{block}
+
+\end{frame}
+
+\section{Update Service}
+
+\subsection{Self-Sustaining Daemon}
+
+
+\begin{frame}[t,fragile]
+
+\begin{block}<1->{State-Machine with togglable states and protected states}
+
+\small
+\resizebox{\textwidth}{!}{
+  \psset{shadowcolor=black!70,blur=true}%
+  \begin{pspicture}(25,18)%\psgrid
+    \rput(4,17){\rnode{A}{\psovalbox[fillstyle=solid,fillcolor=yellow,shadow=true]{Begin}}}
+    \uncover<2->{
+        \rput(4,16){\rnode{B}{\psframebox[shadow=true]{Initialisations}}}
+    }
+    \uncover<3->{
+        \rput(4,14){\rnode{bC}{}}
+        \rput(4,13){\rnode{C}{\psframebox[shadow=true]{Scan}}}
+            \uncover<4->{
+                \rput(9,13){\rnode{D}{\psdiabox[fillstyle=solid,shadow=true]{Newer Image Information?}}}
+            }
+            \uncover<5->{
+                \rput(15,13){\rnode{E}{\psframebox[shadow=true]{scan\_image\_info}}}
+            }
+            \uncover<6->{
+                \rput(21,13){\rnode{F}{\psdiabox[fillstyle=solid,shadow=true]{Contain Update?}}}
+            }
+        \uncover<7->{
+            \rput(1.5,15){\rnode{R}{\psframebox[shadow=true]{Reset}}}
+        }
+    }
+    \uncover<8->{
+        \rput(4,12){\rnode{bG}{}}
+        \rput(4,11){\rnode{G}{\psframebox[shadow=true]{analyse\_update\_details}}}
+    }
+    \uncover<9->{
+        \rput(4,9){\rnode{H}{\psdiabox[fillstyle=solid,shadow=true]{Want download?}}}
+            \rput(9,9){\rnode{I}{\psframebox[shadow=true]{download}}}
+            \rput(15,9){\rnode{J}{\psdiabox[fillstyle=solid,shadow=true]{Download successful?}}}
+    }
+    \uncover<10->{
+        \rput(4,8){\rnode{bK}{}}
+        \rput(4,7){\rnode{K}{\psdiabox[fillstyle=solid,shadow=true]{Verify download?}}}
+            \rput(9,7){\rnode{L}{\psframebox[shadow=true]{verified}}}
+    }
+    \uncover<11->{
+        \rput(4,6){\rnode{bM}{}}
+        \rput(4,5){\rnode{M}{\psdiabox[fillstyle=solid,shadow=true]{Want apply?}}}
+            \rput(9,5){\rnode{N}{\psframebox[shadow=true]{apply}}}
+            \rput(15,5){\rnode{O}{\psovalbox[fillstyle=solid,fillcolor=orange,shadow=true]{Reboot}}}
+    }
+
+
+    % Links
+    \uncover<2->{\ncline[linewidth=0.5pt,linestyle=solid]{->}{A}{B}}
+    \uncover<3->{\ncline[linewidth=0.5pt,linestyle=solid]{->}{B}{C}}
+    \uncover<4->{\ncline[linewidth=0.5pt,linestyle=solid]{->}{C}{D}}
+    \uncover<5->{\ncline[linewidth=0.5pt,linestyle=solid]{->}{D}{E}\naput*[Ynodesep=0.5]{\small Yes}}
+    \uncover<6->{\ncline[linewidth=0.5pt,linestyle=solid]{->}{E}{F}}
+    \uncover<7->{
+        \ncdiagg[angleA=90,lineAngle=0.01]{->}{D}{R}\naput*[Ynodesep=0.5]{\small \textcolor{red}{No}}
+        \ncdiagg[angleA=90,lineAngle=0.01]{->}{F}{R}\naput*[Ynodesep=0.5]{\small \textcolor{red}{No}}
+        \ncdiagg[angleA=-90,lineAngle=0.01]{->}{R}{bC}\naput*[Ynodesep=0.5]{\small scan}
+    }
+    \uncover<8->{
+        \ncdiagg[angleA=-90,lineAngle=0.01]{->}{F}{bG}\naput*[Ynodesep=0.5]{\small Yes}
+        \ncdiagg[angleA=-90,lineAngle=0.01]{->}{D}{bG}\naput*[Ynodesep=0.5,npos=1.25]{\small \textcolor{green}{But already}}
+        \ncline[linewidth=0.5pt,linestyle=solid]{->}{bG}{G}
+    }
+    \uncover<9->{
+        \ncline[linewidth=0.5pt,linestyle=solid]{->}{G}{H}
+        \ncline[linewidth=0.5pt,linestyle=solid]{->}{H}{I}\naput*[Ynodesep=0.5]{\small Yes}
+        \ncdiagg[angleA=180,lineAngle=-130,linestyle=solid]{->}{H}{bC}\nbput*[Ynodesep=0.5,npos=1.5]{\small \textcolor{green}{Not yet}}
+        \ncline[linewidth=0.5pt,linestyle=solid]{->}{I}{J}
+        \ncdiagg[angleA=-90,lineAngle=0.01]{->}{R}{bG}\nbput*[Ynodesep=0.5]{\small check}
+    }
+    \uncover<10->{
+        \ncdiagg[angleA=-90,lineAngle=0.01]{->}{J}{bK}\naput*[Ynodesep=0.5]{\small Yes}
+        \ncbar[angleA=0,angleB=0,lineAngle=0.01]{->}{G}{bK}\naput*[Ynodesep=0.25]{\small \textcolor{green}{But already}}
+        \ncbar[angleA=0,angleB=0,linewidth=0.5pt,linestyle=solid]{->}{J}{R}\naput*[Ynodesep=0.5,npos=0.75]{\small \textcolor{red}{No}}
+        \ncline[linewidth=0.5pt,linestyle=solid]{->}{bK}{K}
+        \ncline[linewidth=0.5pt,linestyle=solid]{->}{K}{L}
+        \ncbar[angleA=-180,angleB=-90,linewidth=0.5pt,linestyle=solid]{->}{K}{R}\naput*[Ynodesep=0.5]{\small \textcolor{red}{No}}
+    }
+    \uncover<11->{
+        \ncdiagg[angleA=-90,lineAngle=0.01]{->}{L}{bM}
+        \ncbar[angleA=180,angleB=180,lineAngle=0.01]{->}{G}{bM}\naput*[Ynodesep=0.5,npos=1.25]{\small \textcolor{green}{But already}}
+        \ncline[linewidth=0.5pt,linestyle=solid]{->}{bM}{M}
+        \ncline[linewidth=0.5pt,linestyle=solid]{->}{M}{N}
+        \ncdiagg[angleA=180,lineAngle=-115,linestyle=solid]{->}{M}{bC}\nbput*[Ynodesep=0.5,npos=1.05]{\small \textcolor{green}{Not yet}}
+        \ncline[linewidth=0.5pt,linestyle=solid]{->}{N}{O}
+    }
+    \end{pspicture}%
+}%resizebox
+\end{block}
+
+\end{frame}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\part{Finish}
+
+\section{Conclusion}
+
+\begin{frame}[t,fragile]
+
+\begin{block}<1->{Conclusion}
+\begin{itemize}
+\item lazy attributes allow designing a multi-stage initialization phase
+\uncover<2->{\item benefit of common runtime (faster load) when using}
+\uncover<3->{\item improve design by}
+\begin{itemize}
+\uncover<4->{\item using roles for behavioral design (avoid duck typing)}
+\uncover<5->{\item using explicit patterns for clear separation of concerns}
+\uncover<6->{\item express intensions clearer for method overloading by using \textit{method modifiers}}
+\end{itemize}
+\end{itemize}
+\end{block}
+
+\end{frame}
+
+\section{Resources}
+
+\subsection{Resources}
+
+% RESOURCES
+\begin{frame}[t,fragile]{Resources}
+\begin{block}<1->{Software}
+\url{https://metacpan.org/pod/Moo} \\
+\url{https://metacpan.org/search?q=MooX} \\
+\url{https://metacpan.org/pod/MooX::Options} \\
+\url{https://metacpan.org/pod/MooX::ConfigFromFile} \\
+\uncover<2->{
+\url{https://github.com/moose/Moo} \\
+\url{https://github.com/rehsack/System-Image-Update} \\
+}
+\end{block}
+
+\begin{block}<3->{Hints}
+\url{http://sck.pm/WVO} \# proper usage of the roles in perl \\
+\url{https://metacpan.org/pod/Moo\#CLEANING-UP-IMPORTS}
+\end{block}
+
+\begin{block}<4->{IRC}
+\url{irc://irc.perl.org/#moose} \\
+\url{irc://irc.perl.org/#web-simple}
+\end{block}
+\end{frame}
+
+\subsection{Thank you}
+
+% THANKS
+\begin{frame}[fragile]{Thank You For Listening}
+\begin{block}<1->{Questions?}
+Jens Rehsack \textless{}\href{mailto:rehsack@cpan.org}{rehsack@cpan.org}\textgreater{}
+\end{block}
+\end{frame}
+
+\end{document}
