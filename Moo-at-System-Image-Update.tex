@@ -439,7 +439,6 @@ around collect_savable_config => sub {
 
 \subsection{Self-Sustaining Daemon}
 
-
 \begin{frame}[t,fragile]
 
 \begin{block}<1->{State-Machine with togglable states and protected states}
@@ -535,20 +534,343 @@ around collect_savable_config => sub {
 
 \end{frame}
 
+\begin{frame}[t,fragile]
 
+\begin{block}<1->{State Control}
+\scriptsize
+\begin{lstlisting}[language=Perl,inputencoding=latin9,escapeinside={(*@}{@*)}]
+package System::Image::Update;
 
+use strict; use warnings; use Moo;
+with "System::Image::Update::Role::Scan", "System::Image::Update::Role::Check", ...
 
+has status => ( is => "rw", lazy => 1, builder => 1, predicate => 1,
+    isa => sub { __PACKAGE__->can( $_[0] ) or die "Invalid status: $_[0]" }
+);
 
+sub _build_status { -f $_[0]->update_manifest ? "check" :
+    $_[0]->has_recent_update and -e $_[0]->download_image ? "prove" : "scan";
+}
+\end{lstlisting}
+\end{block}
 
+\begin{itemize}
+\uncover<2->{\item automatic recovering after down-state (power outage, Vodka party, \ldots)}
+\uncover<3->{\item room for improvements like continue aborted download}
+\uncover<4->{\item no direct path to ''download'' or ''apply'' to avoid mistakes}
+\end{itemize}
 
+\end{frame}
 
+\begin{frame}[t,fragile]
 
+\begin{block}<1->{State Control II}
+\scriptsize
+\begin{lstlisting}[language=Perl,inputencoding=latin9,escapeinside={(*@}{@*)}]
+package System::Image::Update;
 
+use strict; use warnings; use Moo;
+with "System::Image::Update::Role::Scan", "System::Image::Update::Role::Check", ...
 
+has status => ( ... );
 
+around BUILDARGS => sub {
+    my $next = shift; my $class = shift; my $params = $class->$next(@_);
 
+    $params->{status} and $params->{status} eq "apply"
+      and $params->{status} = "prove";
+    $params->{status} and $params->{status} eq "prove"
+      and $params->{recent_update}
+      and $params->{recent_update}->{apply} = DateTime->now->epoch;
 
+    $params;
+};
+\end{lstlisting}
+\end{block}
 
+\begin{itemize}
+\uncover<2->{\item toggleable are ''download'' and ''prove''}
+\uncover<3->{\item ''apply'' is protected by ''prove'' to ensure no corrupted image is applied}
+\uncover<4->{\item protection needs to be improved before releasing to wildlife}
+\end{itemize}
+
+\end{frame}
+
+\section{Middleware Interception}
+
+\subsection{''ReadOnly''}
+
+\begin{frame}[t,fragile]
+
+\begin{block}<1->{Middleware Information Center}
+\scriptsize
+\begin{lstlisting}[language=Perl,inputencoding=latin9,escapeinside={(*@}{@*)}]
+package Update::Status;
+
+use strict; use warnings; use Moo;
+extends (*@\pnode(0,0){A}{}@*)"System::Image::Update";
+
+around _trigger(*@\pnode(0,0){C}{}@*)_recent_update => sub {};
+
+around BUILDARGS => sub {
+    my $next = shift; my $class = shift; my $params = $class->$next(@_);
+    exists $params->{status} and (*@\pnode(0,0){B}{}@*)delete $params->{status};
+    $params;
+};
+\end{lstlisting}
+\end{block}
+
+\begin{itemize}
+\uncover<2->{\item \rnode{a}{derive from} ''System::Image::Update'' to get the real world picture}
+\uncover<3->{\item \rnode{b}{ensure} no construction argument wastes the self-diagnostics}
+\uncover<4->{\item \rnode{c}{prevent} automatism starts when recent update is found}
+\end{itemize}
+\uncover<2>{\nccurve[linecolor=olive]{->}{a}{A}}
+\uncover<3>{\nccurve[linecolor=olive]{->}{b}{B}}
+\uncover<4>{\nccurve[linecolor=olive]{->}{c}{C}}
+
+\uncover<5>{\large What information?}
+
+\end{frame}
+
+\begin{frame}[t,fragile]
+
+\begin{block}<1->{Middleware Information Center}
+\scriptsize
+\begin{lstlisting}[language=Perl,inputencoding=latin9,escapeinside={(*@}{@*)}]
+package Update::Status;
+
+use strict; use warnings; use Moo;
+extends "System::Image::Update";
+
+around _build(*@\pnode(0,0){A}{}@*)_config_prefix => sub { (*@\pnode(0,0){B}{}@*)"sysimg_update" };
+
+around _trigger_recent_update => sub {};
+
+around BUILDARGS => sub {
+    my $next = shift; my $class = shift; my $params = $class->$next(@_);
+    exists $params->{status} and delete $params->{status};
+    $params;
+};
+\end{lstlisting}
+\end{block}
+
+\begin{itemize}
+\uncover<2->{\item default builder guesses \rnode{a}{\texttt{''config\_prefix''}} from \texttt{\$0}}
+\uncover<3->{\item \rnode{b}{override} with \texttt{\$0} from the daemon}
+\end{itemize}
+\uncover<2>{\nccurve[linecolor=teal]{->}{a}{A}}
+\uncover<3>{\nccurve[linecolor=teal]{->}{b}{B}}
+
+\end{frame}
+
+\begin{frame}[t,fragile]
+
+\begin{block}<1->{Middleware Delivery Center}
+\scriptsize
+\begin{lstlisting}[language=Perl,inputencoding=latin9,escapeinside={(*@}{@*)}]
+package hp2sm;
+use strict; use warnings; use Dancer2 ':syntax'; ...; use Update::Status;
+
+get '/status' => sub {
+    my $us = Update::Status->(*@\pnode(0,0){A}{}@*)new;
+    my $status = (*@\pnode(0,0){B}{}@*)"idle";
+    $us->has(*@\pnode(0,0){C}{}@*)_recent_update and $status = (*@\pnode(0,0){D}{}@*)"available";
+    $us->stat(*@\pnode(0,0){E}{}@*)us eq "prove" and $status = (*@\pnode(0,0){F}{}@*)"downloading";
+    $us->has_recent_update and -f $us->(*@\pnode(0,0){G}{}@*)download_image
+      and $us->download_sums->{(*@\pnode(0,0){H}{}@*)size} == stat( $us->download_image )->(*@\pnode(0,0){I}{}@*)size
+      and $status = (*@\pnode(0,0){J}{}@*)"proved";
+    my $pl = (*@\pnode(0,0){K}{}@*)get_process_stats();
+    firstval { $pl->process_name($_) =~ /(*@\pnode(0,0){L}{}@*)flash-device/ } ( 0 .. $pl->entries() - 1 )
+      and $status = "(*@\pnode(0,0){M}{}@*)applying";
+};
+\end{lstlisting}
+\end{block}
+
+\begin{itemize}
+\uncover<2->{\item \rnode{a}{Load and guess} current status of ''System::Image::Update'' instance}
+\uncover<3->{\item \rnode{b}{start with ''idle''} and \rnode{c1}{prove} from \rnode{d1}{earliest} to \rnode{m1}{latest}}
+\uncover<7->{\item \rnode{j}{better} status overrides \rnode{f}{earlier} measures - \rnode{e}{\texttt{''prove''}} implies \rnode{c2}{\texttt{has\_recent\_update}}}
+\uncover<10->{\item \rnode{l}{\texttt{''apply''}} is currently done by an external process}
+\uncover<11->{\item use \rnode{k}{\texttt{Unix::Statgrab}} to grep for processes}
+\end{itemize}
+
+\uncover<2>{\nccurve[linecolor=teal]{->}{a}{A}}
+
+\uncover<3-6>{\nccurve[linecolor=olive]{->}{b}{B}}
+\uncover<4-6>{\nccurve[linecolor=olive]{->}{c1}{C}}
+\uncover<5-6>{\nccurve[linecolor=RedViolet]{->}{d1}{D}}
+\uncover<6-6>{\nccurve[linecolor=RedViolet]{->}{m1}{M}}
+
+\uncover<7-9>{\nccurve[linecolor=olive]{->}{j}{J}}
+\uncover<8-9>{\nccurve[linecolor=olive]{->}{f}{F}}
+\uncover<9-9>{\nccurve[linecolor=cyan]{->}{e}{E}}
+\uncover<9-9>{\nccurve[linecolor=cyan]{->}{c2}{C}}
+
+\uncover<10>{\nccurve[linecolor=teal]{->}{l}{L}}
+\uncover<11>{\nccurve[linecolor=teal]{->}{k}{K}}
+
+\end{frame}
+
+\subsection{''WriteBack''}
+
+\begin{frame}[t,fragile]
+
+\begin{block}<1->{Middleware Strikes Back}
+\scriptsize
+\begin{lstlisting}[language=Perl,inputencoding=latin9,escapeinside={(*@}{@*)}]
+package hp2sm;
+use strict; use warnings; use Dancer2 ':syntax'; ...; use Update::Status;
+
+put '/status/downloading' => sub {
+    my $us = Update::Status->new();
+    $us->has_recent_update or return $json->encode( { result => "n/a" } );
+    $us->status("download"); $us->save_config;
+    system("svc -t /etc/daemontools/service/sysimg_update/");
+    return $json->encode( { result => "ok" } );
+};
+\end{lstlisting}
+\end{block}
+
+\begin{block}<2->{Middleware Information Boosted Persistency}
+\scriptsize
+\begin{lstlisting}[language=Perl,inputencoding=latin9,escapeinside={(*@}{@*)}]
+package Update::Status;
+use strict; use warnings; use Moo;
+extends "System::Image::Update";
+
+around collect_savable_config => sub {
+    my $next = shift; my $self = shift; my $save_cfg = $self->$next(@_);
+    $self->has_status and $save_cfg->{status} = $self->status;
+    $self->has_download_file
+      and $save_cfg->{download_file} = $self->download_file;
+    $save_cfg; };
+\end{lstlisting}
+\end{block}
+
+\end{frame}
+
+\section{Glue}
+
+\subsection{Into Target Filesystem}
+
+\begin{frame}[t,fragile]
+
+\begin{block}<1->{system-image-update\_git.bb top}
+\scriptsize
+\begin{lstlisting}[language=bash,inputencoding=latin9,escapeinside={(*@}{@*)}]
+DESCRI(*@\pnode(0,0){A}{}@*)PTION = "System::Image::Update helps managing updates of OS images ..."
+SRC_URI(*@\pnode(0,0){B}{}@*) = "git://github.com/rehsack/System-Image-Update.git;rev=646fa928... \
+           file://run file://sysimg_update.json"
+RDEPENDS_${PN}(*@\pnode(0,0){C}{}@*) += "archive-peek-libarchive-perl crypt-ripemd160-perl"
+RDEPENDS_${PN} += "datetime-format-strptime-perl"
+RDEPENDS_${PN} += "log-any-adapter-dispatch-perl"
+RDEPENDS_${PN} += "file-configdir-system-image-update-perl"
+RDEPENDS_${PN}(*@\pnode(0,0){D}{}@*) += "moo-perl moox-configfromfile-perl moox-log-any-perl"
+RDEPENDS_${PN} += "moox-options-perl net-async-http-perl"
+RDEPENDS_${PN} += "digest-md5-perl digest-md6-perl"
+RDEPENDS_${PN} += "digest-sha-perl digest-sha3-perl"
+RDEPENDS_${PN}(*@\pnode(0,0){E}{}@*) += "daemontools system-image"
+S = "${WORKDIR}/(*@\pnode(0,0){F}{}@*)git"
+BBCLASSEXTEND = (*@\pnode(0,0){G}{}@*)"native"
+
+inherit (*@\pnode(0,0){H}{}@*)cpan
+do_configure_append() {
+    oe_runmake (*@\pnode(0,0){I}{}@*)manifest
+}
+\end{lstlisting}
+\end{block}
+
+\begin{itemize}
+\uncover<2->{\item typical  \rnode{a}{package} stuff \ldots, \uncover<3->{like \rnode{c}{runtime dependencies}}}
+\uncover<4->{\item git checkouts need \rnode{f}{adoption} of source path}
+\uncover<5->{\item build as \rnode{h}{any cpan} package is built, but allow \rnode{g}{native} packages and create missing \rnode{i}{\texttt{MANIFEST}}}
+\end{itemize}
+
+\uncover<2-3>{\nccurve[linecolor=teal]{->}{a}{A}}
+\uncover<2-3>{\nccurve[linecolor=teal]{->}{a}{B}}
+\uncover<3-3>{\nccurve[linecolor=teal]{->}{c}{C}}
+\uncover<3-3>{\nccurve[linecolor=teal]{->}{c}{D}}
+\uncover<3-3>{\nccurve[linecolor=teal]{->}{c}{E}}
+
+\uncover<4-4>{\nccurve[linecolor=RedViolet]{->}{f}{F}}
+
+\uncover<5-6>{\nccurve[linecolor=cyan]{->}{h}{H}}
+\uncover<5-6>{\nccurve[linecolor=cyan]{->}{g}{G}}
+\uncover<6-6>{\nccurve[linecolor=RedViolet]{->}{i}{I}}
+
+\end{frame}
+
+\begin{frame}[t,fragile]
+
+\begin{block}<1->{system-image-update\_git.bb bottom}
+\scriptsize
+\begin{lstlisting}[language=bash,inputencoding=latin9,escapeinside={(*@}{@*)}]
+SERVICE_ROOT = "${sysconfdir}/daemontools/service"
+SYSUPDT_SERVICE_(*@\pnode(0,0){A}{}@*)DIR = "${SERVICE_ROOT}/sysimg_update"
+
+do_install_append() {
+    install -d -m 755 ${D}${sysconfdir}
+    install -m 0644 ${WORKDIR}/(*@\pnode(0,0){C}{}@*)sysimg_update.json ${D}${sysconfdir}
+
+    install -d ${D}${SYSUPDT_SERVICE_DIR}
+    install -m 0755 ${WORKDIR}/(*@\pnode(0,0){B}{}@*)run ${D}${SYSUPDT_SERVICE_DIR}/run
+}
+FILES_${PN} (*@\pnode(0,0){D}{}@*)+= "${sysconfdir}"
+\end{lstlisting}
+\end{block}
+
+\begin{itemize}
+\uncover<2->{\item define \rnode{a}{location of startup} scripts \uncover<3->{and \rnode{b}{install to there}}}
+\uncover<4->{\item \rnode{c}{install} configuration file}
+\uncover<5->{\item tell bitbake to put files from \texttt{\$\{sysconfdir\}} \rnode{d}{into package}}
+\end{itemize}
+
+\uncover<2-3>{\nccurve[linecolor=teal]{->}{a}{A}}
+\uncover<3-3>{\nccurve[linecolor=cyan]{->}{b}{B}}
+
+\uncover<4-4>{\nccurve[linecolor=olive]{->}{c}{C}}
+\uncover<5-5>{\nccurve[linecolor=olive]{->}{d}{D}}
+
+\end{frame}
+
+\section{Configuration file}
+
+\subsection{Distributions and Moo Initialization Glue}
+
+\begin{frame}[t,fragile]
+
+\begin{block}<1->{sysimg\_update.json}
+\scriptsize
+\begin{lstlisting}[language=Java,inputencoding=latin9,escapeinside={(*@}{@*)}]
+{
+    "(*@\pnode(0,0){A}{}@*)log_adapter" : [
+        "Dispatch",
+        "outputs", [
+            [ "File",   "min_level", "debug", "filename",
+              "/var/log/sysimg_update.log", "newline", 1, "mode", ">>" ],
+            [ "File",   "min_level", "error", "filename",
+              "/var/log/sysimg_update.error", "newline", 1, "mode", ">>" ],
+            [ "Screen", "min_level", "notice", "newline", 1, "stderr", 1 ]
+        ]
+    ],
+    "(*@\pnode(0,0){B}{}@*)update_manifest_dirname" : "/rwmedia/update/",
+    "(*@\pnode(0,0){C}{}@*)http_user" : "b01f..."
+}
+\end{lstlisting}
+\end{block}
+
+\begin{itemize}
+\uncover<2->{\item Provides \rnode{a}{settings} for \texttt{Log::Any} (mind \texttt{\_trigger\_log\_adapter} in \texttt{System::Image::Update::Role::Logging} consuming \texttt{MooX::Log::Any})}
+\uncover<3->{\item redirect place to \rnode{b}{store update} manifest (files)}
+\uncover<4->{\item Provide \rnode{c}{authentication} to update server for development boxes (avoid \texttt{builder} is called)}
+\end{itemize}
+
+\uncover<2-2>{\nccurve[linecolor=olive]{->}{a}{A}}
+\uncover<3-3>{\nccurve[linecolor=teal]{->}{b}{B}}
+\uncover<4-4>{\nccurve[linecolor=RedViolet]{->}{c}{C}}
+
+\end{frame}
 \part{Finish}
 
 \section{Conclusion}
@@ -576,25 +898,37 @@ around collect_savable_config => sub {
 
 % RESOURCES
 \begin{frame}[t,fragile]{Resources}
-\begin{block}<1->{Software}
+\begin{block}<1->{Software on MetaCPAN}
 \url{https://metacpan.org/pod/Moo} \\
 \url{https://metacpan.org/search?q=MooX} \\
 \url{https://metacpan.org/pod/MooX::Options} \\
 \url{https://metacpan.org/pod/MooX::ConfigFromFile} \\
-\uncover<2->{
+\url{https://metacpan.org/pod/IO::Async}
+\end{block}
+
+\begin{block}<2->{Software on GitHub}
 \url{https://github.com/moose/Moo} \\
 \url{https://github.com/rehsack/System-Image-Update} \\
-}
+\url{https://github.com/perl5-utils/File-ConfigDir-System-Image-Update}
 \end{block}
 
-\begin{block}<3->{Hints}
+\begin{block}<3->{Software for Cross-Building Perl-Modules}
+\url{https://www.yoctoproject.org/} \\
+\url{https://github.com/rehsack/meta-cpan}
+\end{block}
+\end{frame}
+
+\begin{frame}[t,fragile]{Resources}
+\begin{block}<1->{IRC}
+\url{irc://irc.perl.org/#moose} \\
+\url{irc://irc.perl.org/#web-simple} \\
+\url{irc://irc.perl.org/#dancer} \\
+\url{irc://irc.freenode.org/#yocto}
+\end{block}
+
+\begin{block}<2->{Hints}
 \url{http://sck.pm/WVO} \# proper usage of the roles in perl \\
 \url{https://metacpan.org/pod/Moo\#CLEANING-UP-IMPORTS}
-\end{block}
-
-\begin{block}<4->{IRC}
-\url{irc://irc.perl.org/#moose} \\
-\url{irc://irc.perl.org/#web-simple}
 \end{block}
 \end{frame}
 
