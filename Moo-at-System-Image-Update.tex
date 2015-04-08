@@ -1,4 +1,4 @@
-\documentclass[ngerman,xcolor={table,dvipsnames},smaller,compress,hyperref={bookmarks,colorlinks},handout]{beamer}%
+\documentclass[ngerman,xcolor={table,dvipsnames},smaller,compress,hyperref={bookmarks,colorlinks}]{beamer}%,handout
 
 \usepackage{url}
 \usepackage{listings}
@@ -88,8 +88,8 @@
 \begin{frame}[t,fragile]{Audience}
 \begin{block}<1->{Audience}
 \begin{itemize}
-\item Developer who want to create or improve Perl5 software
-\item Developer who want to learn how to develop modern OO with Perl5
+\item Developers who want to create or improve Perl5 software
+\item Developers who want to learn how to develop modern OO with Perl5
 \item DevOps or Integrators who are interested in embedded or automatic update concepts
 \end{itemize}
 \end{block}
@@ -100,11 +100,10 @@ Following knowledge is expected:
 \item General knowledge about object oriented programming or concepts like
     \small
     \begin{itemize}
-    \item classes
-    \item objects
-    \item polymorphism, inheritance and/or roles
+    \item difference between classes and objects
+    \item polymorphism, inheritance
     \item methods, class functions
-    \item attributes, properties
+    \item attributes, properties, interfaces and/or roles
     \end{itemize}
     \normalsize
 \item slightly above basic Perl experience
@@ -236,11 +235,10 @@ has update_mani(*@\pnode(0,0){C}{}@*)fest_uri => ( is => "(*@\pnode(0,0){E}{}@*)
     \uncover<4->{\item[lazy] defines the attribute is read-only with a lazy initialization, implies \texttt{builder => 1}}
     \end{description}
 \uncover<5->{\item[required] when set to a true value, attribute must be passed on instantiation}
-\uncover<6->{\item[isa] defines a subroutine (\texttt{coderef}) which is called to validate values to set}
-\uncover<7->{\item[coerce] defines a subroutine (\texttt{coderef}) which forces attribute values}
-\uncover<8->{\item[trigger] takes a subroutine (\texttt{coderef}) which is called anytime the attribute is set \\
-    \uncover<9->{\textbf{special}: the value of $ 1 $ means to generate a (\texttt{coderef}) which calles the method \texttt{\_trigger\_\$\{attr\_name\}} (This is called \textit{attribute shortcut})}}
-\uncover<10->{\item[default] subroutine (\texttt{coderef}) which is called to initialize an attribute}
+\uncover<6->{\item[init\_arg] Takes the name of the key to look for at instantiation time of the object. A common use of this is to make an underscored attribute have a non-underscored initialization name. undef means that passing the value in on instantiation is ignored.}
+\uncover<7->{\item[isa] defines a subroutine (\texttt{coderef}) which is called to validate values to set}
+\uncover<8->{\item[coerce] defines a subroutine (\texttt{coderef}) which forces attribute values}
+\uncover<9->{\item[default] subroutine (\texttt{coderef}) which is called to initialize an attribute}
 \end{description}
 \end{block}
 
@@ -249,11 +247,12 @@ has update_mani(*@\pnode(0,0){C}{}@*)fest_uri => ( is => "(*@\pnode(0,0){E}{}@*)
 \begin{frame}[t,fragile]
 
 \begin{block}<1->{Attribute options - Selection II}
+Following options can benefit from \textit{attribute shortcuts}: the value of $ 1 $ instead of a method name means to generate a \texttt{coderef} which calls the method \texttt{\_\$\{option\_name\}\_\$\{attr\_name\}}
 \begin{description}[style=sameline]
-\item[builder] takes a method name (\texttt{string}) which is called to initialize an attribute (supports \textit{attribute shortcut})
-\uncover<2->{\item[init\_arg] Takes the name of the key to look for at instantiation time of the object. A common use of this is to make an underscored attribute have a non-underscored initialization name. undef means that passing the value in on instantiation is ignored.}
-\uncover<3->{\item[clearer] takes a method name (\texttt{string}) which will clear the attribute (supports \textit{attribute shortcut})}
-\uncover<4->{\item[predicate] takes a method name (\texttt{string}) which will return true if an attribute has a value (supports \textit{attribute shortcut})}
+\item[builder] takes a method name (\texttt{string}) which is called to initialize an attribute (calls \texttt{\_build\_\$\{attr\_name\}} on \textit{attribute shortcut})
+\uncover<2->{\item[trigger] takes a subroutine (\texttt{coderef}) which is called anytime the attribute is set (calls \texttt{\_trigger\_\$\{attr\_name\}} on \textit{attribute shortcut})}
+\uncover<3->{\item[clearer] takes a method name (\texttt{string}) which will clear the attribute (provides \texttt{clear\_\$\{attr\_name\}} on \textit{attribute shortcut})}
+\uncover<4->{\item[predicate] takes a method name (\texttt{string}) which will return true if an attribute has a value (provides \texttt{has\_\$\{attr\_name\}} on \textit{attribute shortcut})}
 \end{description}
 \end{block}
 
@@ -317,7 +316,7 @@ around is called instead of the method it is modifying. The method you're overri
 \end{block}
 
 \uncover<6->{In doubt \rnode{a}{\texttt{MooX::Override}} provides \texttt{override} and \texttt{super}}
-\uncover<7->{and \rnode{b}{\texttt{MooX::Augment}} provides \texttt{augment} and \texttt{inner}}
+\uncover<7->{while \rnode{b}{\texttt{MooX::Augment}} provides \texttt{augment} and \texttt{inner}}
 
 \uncover<6>{\nccurve[linecolor=teal]{->}{a}{A}\nccurve[linecolor=teal]{->}{a}{B}}
 \uncover<7>{\nccurve[linecolor=cyan]{->}{b}{C}\nccurve[linecolor=cyan]{->}{b}{D}}
@@ -329,7 +328,7 @@ around is called instead of the method it is modifying. The method you're overri
 \begin{block}<1->{Method Modifiers - Advantages}
 \begin{itemize}
 \item supersedes \texttt{\$self->SUPER::foo(@\_)} syntax
-\uncover<2->{\item cleaner interface than SUPER}
+\uncover<2->{\item cleaner interface than \texttt{SUPER}}
 \uncover<3->{\item allows multiple modifiers in single namespace}
 \uncover<4->{\item also possible from within roles and not restricted to inheritance}
 \uncover<5->{\item ensures that inherited methods invocation happens right (mostly - remember around)}
@@ -406,11 +405,12 @@ around collect_savable_config => sub {
     }%
     \column[T]{.50\textwidth}
     \uncover<2->{
+      Approach:
       \begin{itemize}
-      \item Successor of Guruplug based Homepilot 1
-      \uncover<3->{\item Full update abilities (including boot loader, kernel and system components)}
-      \uncover<4->{\item Multimedia features (Mediaplayer with HDMI video and Coaxial audio)}
-      \uncover<5->{\item Closer Adoption to Rademacher Way: Control from Hardware development until Customer Service}
+      \uncover<3->{\item Successor of Guruplug based Homepilot 1}
+      \uncover<4->{\item Full update abilities (including boot loader, kernel and system components)}
+      \uncover<5->{\item Multimedia features (Mediaplayer with HDMI video and Coaxial audio)}
+      \uncover<6->{\item Closer Adoption to Rademacher Way: Control from Hardware development until Customer Service}
       \end{itemize}
     }
   \end{columns} 
@@ -522,7 +522,7 @@ around collect_savable_config => sub {
     }
     \uncover<10->{
         \ncdiagg[angleA=-90,lineAngle=0.01]{->}{J}{bK}\naput*[Ynodesep=0.5]{\small Yes}
-        \ncbar[angleA=0,angleB=0,lineAngle=0.01]{->}{G}{bK}\naput*[Ynodesep=0.25]{\small \textcolor{green}{But already}}
+        \ncbar[angleA=0,angleB=0,lineAngle=0.01]{->}{G}{bK}\naput*[Ynodesep=0.25,npos=1.25]{\small \textcolor{green}{But already}}
         \ncbar[angleA=0,angleB=0,linewidth=0.5pt,linestyle=solid]{->}{J}{R}\naput*[Ynodesep=0.5,npos=0.75]{\small \textcolor{red}{No}}
         \ncline[linewidth=0.5pt,linestyle=solid]{->}{bK}{K}
         \ncline[linewidth=0.5pt,linestyle=solid]{->}{K}{L}
@@ -530,7 +530,7 @@ around collect_savable_config => sub {
     }
     \uncover<11->{
         \ncdiagg[angleA=-90,lineAngle=0.01]{->}{L}{bM}
-        \ncbar[angleA=180,angleB=180,lineAngle=0.01]{->}{G}{bM}\naput*[Ynodesep=0.5,npos=1.25]{\small \textcolor{green}{But already}}
+        %\ncbar[angleA=180,angleB=180,lineAngle=0.01]{->}{G}{bM}\naput*[Ynodesep=0.5,npos=1.25]{\small \textcolor{green}{But already}}
         \ncline[linewidth=0.5pt,linestyle=solid]{->}{bM}{M}
         \ncline[linewidth=0.5pt,linestyle=solid]{->}{M}{N}
         \ncdiagg[angleA=180,lineAngle=-115,linestyle=solid]{->}{M}{bC}\nbput*[Ynodesep=0.5,npos=1.05]{\small \textcolor{green}{Not yet}}
@@ -550,7 +550,8 @@ around collect_savable_config => sub {
 package System::Image::Update;
 
 use strict; use warnings; use Moo;
-with "System::Image::Update::Role::Scan", "System::Image::Update::Role::Check", ...
+with "System::Image::Update::Role::Scan",
+     "System::Image::Update::Role::Check", ...
 
 has status => ( is => "rw", lazy => 1, builder => 1, predicate => 1,
     isa => sub { __PACKAGE__->can( $_[0] ) or die "Invalid status: $_[0]" }
@@ -945,7 +946,8 @@ FILES_${PN} (*@\pnode(0,0){D}{}@*)+= "${sysconfdir}"
 % THANKS
 \begin{frame}[fragile]{Thank You For Listening}
 \begin{block}<1->{Questions?}
-Jens Rehsack \textless{}\href{mailto:rehsack@cpan.org}{rehsack@cpan.org}\textgreater{}
+Jens Rehsack \textless{}\href{mailto:rehsack@cpan.org}{rehsack@cpan.org}\textgreater{} \\
+Cologne
 \end{block}
 \end{frame}
 
