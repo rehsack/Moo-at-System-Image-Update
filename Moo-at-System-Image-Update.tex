@@ -16,16 +16,14 @@
 \usepackage{amssymb}
 \usepackage{amsmath}
 
-% for multipage tables (xtab or longtable
-\usepackage{longtable}
 \usepackage{lscape}
 \usepackage{booktabs}
 \usepackage[tableposition=top]{caption}
 
 \title{Moo in practice - System::Image::Update}
 \author{Jens Rehsack}
-\institute[Niederrhein.PM]{Niederrhein Perl Mongers}
-\date{2015}
+\institute[Niederrhein.PM]{Netherlands Perl Workshop}
+\date{July, 6th 2018}
 
 \usetheme[secheader]{Boadilla}
 \setbeamertemplate{navigation symbols}{}
@@ -431,11 +429,11 @@ around collect_savable_config => sub {
     \column[T]{.50\textwidth}
       \uncover<2->{
       \begin{itemize}
-      \item service console moved from PHP to Perl5, PSGI and Dancer
+      \item service console moved from PHP to Perl5, PSGI and Dancer 2
       \uncover<3->{\item system management and automation full Perl5 powered}
       \uncover<4->{\item company infrastructure improved by Perl (eg. production of HP2)}
       \uncover<5->{\item created Yocto CPAN Layer for cross compiling lot's of CPAN modules}
-      \uncover<6->{\item PoC use Perl6 + NativeCall to eliminate wrapper processes}
+      %\uncover<6->{\item PoC use Perl6 + NativeCall to eliminate wrapper processes}
       \end{itemize}
     }
   \end{columns} 
@@ -773,7 +771,7 @@ SRC_URI(*@\pnode(0,0){B}{}@*) = "git://github.com/rehsack/System-Image-Update.gi
            file://run file://sysimg_update.json"
 RDEPENDS_${PN}(*@\pnode(0,0){C}{}@*) += "archive-peek-libarchive-perl crypt-ripemd160-perl"
 RDEPENDS_${PN} += "datetime-format-strptime-perl"
-RDEPENDS_${PN} += "log-any-adapter-dispatch-perl"
+RDEPENDS_${PN} += "log-any-adapter-log4cplus-perl"
 RDEPENDS_${PN} += "file-configdir-system-image-update-perl"
 RDEPENDS_${PN}(*@\pnode(0,0){D}{}@*) += "moo-perl moox-configfromfile-perl moox-log-any-perl"
 RDEPENDS_${PN} += "moox-options-perl net-async-http-perl"
@@ -854,14 +852,9 @@ FILES_${PN} (*@\pnode(0,0){D}{}@*)+= "${sysconfdir}"
 \begin{lstlisting}[language=Java,inputencoding=latin9,escapeinside={(*@}{@*)}]
 {
     "(*@\pnode(0,0){A}{}@*)log_adapter" : [
-        "Dispatch",
-        "outputs", [
-            [ "File",   "min_level", "debug", "filename",
-              "/var/log/sysimg_update.log", "newline", 1, "mode", ">>" ],
-            [ "File",   "min_level", "error", "filename",
-              "/var/log/sysimg_update.error", "newline", 1, "mode", ">>" ],
-            [ "Screen", "min_level", "notice", "newline", 1, "stderr", 1 ]
-        ]
+        "Log4cplus",
+        "config_file", "etc/sysimg_update.properties",
+	"name", "sysimg_update"
     ],
     "(*@\pnode(0,0){B}{}@*)update_manifest_dirname" : "/rwmedia/update/",
     "(*@\pnode(0,0){C}{}@*)http_user" : "b01f..."
